@@ -83,6 +83,28 @@ interface Project {
   schemas: ZWSchemaDefinition[];
 }
 
+const STORAGE_KEY = 'zw-transformer-projects';
+
+export const loadProjectsFromStorage = (): Project[] => {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Project[]) : [];
+  } catch (err) {
+    console.error('Failed to load projects from localStorage', err);
+    return [];
+  }
+};
+
+export const saveProjectsToStorage = (projects: Project[]): void => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  } catch (err) {
+    console.error('Failed to save projects to localStorage', err);
+  }
+};
+
 interface ValidationFeedback {
   type: 'success' | 'error' | 'info';
   message: string;
@@ -110,6 +132,17 @@ const App = () => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+
+  useEffect(() => {
+    const stored = loadProjectsFromStorage();
+    if (stored.length > 0) {
+      setProjects(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    saveProjectsToStorage(projects);
+  }, [projects]);
 
   const [templateDefinition, setTemplateDefinition] = useState('');
   const [nlScenario, setNlScenario] = useState('');
