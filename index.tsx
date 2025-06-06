@@ -89,6 +89,11 @@ interface ValidationFeedback {
   suggestions?: string[];
 }
 
+interface ExportStatus {
+  type: 'success' | 'error';
+  message: string;
+}
+
 // Initialize Gemini API client
 // Ensure API_KEY is set in the environment variables
 let ai: GoogleGenAI | null = null;
@@ -129,6 +134,8 @@ const App = () => {
 
   const [templateFilename, setTemplateFilename] = useState('template.zw');
   const [generatedPacketFilename, setGeneratedPacketFilename] = useState('generated_packet.zw');
+  const [bundleFilename, setBundleFilename] = useState('templates_bundle.zw');
+  const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null);
 
 
   const activeProject = projects.find(p => p.id === activeProjectId) || null;
@@ -236,15 +243,47 @@ const App = () => {
     }
   };
   
-  const downloadFile = (content: string, filename: string, contentType: string = 'text/plain') => {
-    const blob = new Blob([content], { type: contentType });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+  const downloadFile = (content: string, filename: string, contentType: string = 'text/plain'): boolean => {
+    try {
+      const blob = new Blob([content], { type: contentType });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      return true;
+    } catch (err) {
+      console.error('Download failed:', err);
+      return false;
+    }
+  };
+
+  const handleExportAllTemplates = () => {
+    if (!activeProject) {
+      setExportStatus({ type: 'error', message: 'No active project selected.' });
+      return;
+    }
+    if (activeProject.schemas.length === 0) {
+      setExportStatus({ type: 'error', message: 'There are no templates to export.' });
+      return;
+    }
+
+    try {
+      const bundleContent = activeProject.schemas
+        .map(s => `# ${s.name}\n${s.definition}`)
+        .join('\n\n');
+      const success = downloadFile(bundleContent, bundleFilename);
+      if (success) {
+        setExportStatus({ type: 'success', message: 'Templates exported successfully.' });
+      } else {
+        setExportStatus({ type: 'error', message: 'Failed to export templates.' });
+      }
+    } catch (err) {
+      console.error('Failed to export templates:', err);
+      setExportStatus({ type: 'error', message: 'Failed to export templates.' });
+    }
   };
 
   const handleGenerateZWFromNL = async () => {
@@ -613,10 +652,23 @@ Updated ZW Packet:`;
                   <p>Exporting for project: <strong>{activeProject.name}</strong></p>
                   <section style={{marginBottom:'20px'}}>
                     <h3>Export All Project Schemas/Templates</h3>
-                    <p>This will bundle all defined templates for "{activeProject.name}" into a single file or individual files.</p>
-                    <button onClick={() => alert('Multi-template export coming soon!')} className="action-button" disabled={activeProject.schemas.length === 0}>
+                    <p>This will bundle all defined templates for "{activeProject.name}" into a single file.</p>
+                    <label htmlFor="bundle-filename" className="sr-only">Bundle Filename</label>
+                    <input
+                      type="text"
+                      id="bundle-filename"
+                      value={bundleFilename}
+                      onChange={e => setBundleFilename(e.target.value)}
+                      placeholder="templates_bundle.zw"
+                      style={{ marginRight: '10px', padding: '8px' }}
+                      aria-label="Filename for bundled templates"
+                    />
+                    <button onClick={handleExportAllTemplates} className="action-button" disabled={activeProject.schemas.length === 0}>
                       Export All Templates ({activeProject.schemas.length})
                     </button>
+                    {exportStatus && (
+                      <p role="status" style={{color: exportStatus.type === 'success' ? 'green' : 'red'}}>{exportStatus.message}</p>
+                    )}
                   </section>
                   <hr/>
                   <section style={{marginTop:'20px'}}>
@@ -631,8 +683,11 @@ Updated ZW Packet:`;
                       style={{ marginRight: '10px', padding: '8px' }} 
                       aria-label="Filename for current template"
                     />
-                    <button 
-                      onClick={() => downloadFile(templateDefinition, templateFilename)} 
+                    <button
+                      onClick={() => {
+                        const ok = downloadFile(templateDefinition, templateFilename);
+                        setExportStatus(ok ? { type: 'success', message: 'Template exported successfully.' } : { type: 'error', message: 'Failed to export template.' });
+                      }}
                       disabled={!templateDefinition.trim()}
                       className="action-button"
                     >
@@ -651,8 +706,11 @@ Updated ZW Packet:`;
                       style={{ marginRight: '10px', padding: '8px' }}
                       aria-label="Filename for generated packet"
                     />
-                     <button 
-                        onClick={() => downloadFile(generatedZWPacket, generatedPacketFilename)}
+                     <button
+                        onClick={() => {
+                          const ok = downloadFile(generatedZWPacket, generatedPacketFilename);
+                          setExportStatus(ok ? { type: 'success', message: 'Generated packet exported successfully.' } : { type: 'error', message: 'Failed to export packet.' });
+                        }}
                         className="action-button"
                         disabled={!generatedZWPacket.trim()}
                       >
