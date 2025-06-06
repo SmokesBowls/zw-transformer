@@ -3,68 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import ZWTemplateVisualizer from './ZWTemplateVisualizer';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-
-// Define ZW Parsing logic and types here to be accessible by App and potentially ZWTemplateVisualizer
-interface ZWNode {
-  key: string;
-  value?: string | ZWNode[] | ZWListItem[];
-  depth: number;
-  parent?: ZWNode; // Optional: for complex parsing/navigation
-}
-
-interface ZWListItem {
-  value: string | ZWNode[];
-  isKeyValue?: boolean;
-  itemKey?: string;
-  depth: number;
-}
-
-const getIndentation = (line: string): number => {
-  const match = line.match(/^(\s*)/);
-  return match ? match[0].length : 0;
-};
-
-const parseSimpleZW = (zwString: string): ZWNode | null => {
-  if (!zwString.trim()) return null;
-  const lines = zwString.split('\n').filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
-  if (lines.length === 0) return null;
-
-  const rootLine = lines[0].trim();
-  const rootMatch = rootLine.match(/^([A-Z0-9_-]+(?:-[A-Z0-9_-]+)*):\s*$/i);
-  
-  if (!rootMatch) {
-    return { key: 'Error: Invalid Root', value: 'Packet must start with a valid type (e.g., ZW-REQUEST:)', depth: 0 };
-  }
-  const rootKey = rootMatch[1];
-  const rootNode: ZWNode = { key: rootKey, value: [], depth: 0 };
-  let tempValueCollector: ZWNode[] | ZWListItem[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    const indent = getIndentation(line);
-    const trimmedLine = line.trim();
-    if (indent === 2) { 
-        const kvMatch = trimmedLine.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-        const sectionMatch = trimmedLine.match(/^([A-Za-z0-9_]+):\s*$/);
-        if (kvMatch) {
-            (tempValueCollector as ZWNode[]).push({ key: kvMatch[1], value: kvMatch[2] || '', depth: 1 });
-        } else if (sectionMatch) {
-            (tempValueCollector as ZWNode[]).push({ key: sectionMatch[1], value: [], depth: 1 });
-        } else if (trimmedLine.startsWith('- ')) {
-            const itemContent = trimmedLine.substring(2).trim();
-             const listItemKvMatch = itemContent.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-             if (listItemKvMatch) {
-                 (tempValueCollector as ZWListItem[]).push({ itemKey: listItemKvMatch[1], value: listItemKvMatch[2] || '', isKeyValue: true, depth: 1 });
-             } else {
-                (tempValueCollector as ZWListItem[]).push({ value: itemContent, depth: 1 });
-             }
-        }
-    }
-  }
-  if (tempValueCollector.length > 0) {
-    rootNode.value = tempValueCollector;
-  }
-  return rootNode;
-};
+import { parseZW } from './ZWParser';
 
 
 // --- App Component ---
@@ -204,7 +143,7 @@ const App = () => {
       return;
     }
 
-    const parsedInput = parseSimpleZW(zwToValidate);
+    const parsedInput = parseZW(zwToValidate);
 
     if (!parsedInput || parsedInput.key.startsWith('Error:')) {
       setValidationResults({ type: 'error', message: `Syntax Error: ${parsedInput?.value || 'Invalid ZW structure.'}` });
@@ -215,7 +154,7 @@ const App = () => {
     let foundMatch = false;
 
     for (const schemaDef of activeProject.schemas) {
-      const parsedSchema = parseSimpleZW(schemaDef.definition);
+      const parsedSchema = parseZW(schemaDef.definition);
       if (parsedSchema && parsedSchema.key === inputPacketType) {
         setValidationResults({
           type: 'success',
@@ -227,7 +166,7 @@ const App = () => {
     }
 
     if (!foundMatch) {
-      const suggestions = activeProject.schemas.map(s => `"${s.name}" (Type: ${parseSimpleZW(s.definition)?.key || 'unknown'})`);
+      const suggestions = activeProject.schemas.map(s => `"${s.name}" (Type: ${parseZW(s.definition)?.key || 'unknown'})`);
       setValidationResults({
         type: 'info',
         message: `Input ZW type "${inputPacketType}" does not match any known schema in project "${activeProject.name}".`,
