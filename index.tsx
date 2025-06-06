@@ -66,6 +66,78 @@ const parseSimpleZW = (zwString: string): ZWNode | null => {
   return rootNode;
 };
 
+interface ValidationIssue {
+  line: number;
+  message: string;
+  suggestion?: string;
+}
+
+const permittedSections = ['CONTEXT', 'DATA', 'META'];
+const requiredSections = ['CONTEXT'];
+const requiredFields = ['ID'];
+
+const validateZWString = (zwString: string): ValidationIssue[] => {
+  const issues: ValidationIssue[] = [];
+  if (!zwString.trim()) return issues;
+
+  const lines = zwString.split('\n');
+  const foundSections = new Set<string>();
+  const foundFields = new Set<string>();
+
+  const rootMatch = lines[0]?.trim().match(/^([A-Z0-9_-]+):\s*$/);
+  if (!rootMatch) {
+    issues.push({ line: 1, message: 'Root line must be in the form "TYPE:"', suggestion: 'Example: ZW-REQUEST:' });
+  }
+
+  for (let i = 1; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const indent = getIndentation(raw);
+
+    if (indent === 2) {
+      const sectionMatch = trimmed.match(/^([A-Za-z0-9_]+):\s*$/);
+      const kvMatch = trimmed.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
+      if (sectionMatch) {
+        const sec = sectionMatch[1];
+        foundSections.add(sec);
+        if (!permittedSections.includes(sec)) {
+          issues.push({ line: i + 1, message: `Unknown section "${sec}"`, suggestion: `Use one of: ${permittedSections.join(', ')}` });
+        }
+      } else if (kvMatch) {
+        foundFields.add(kvMatch[1]);
+      } else if (trimmed.startsWith('- ')) {
+        issues.push({ line: i + 1, message: 'List items are not allowed at the top level', suggestion: 'Indent list items under a section or key.' });
+      } else {
+        issues.push({ line: i + 1, message: 'Unrecognized line format at top level' });
+      }
+    } else if (indent >= 4) {
+      if (trimmed.startsWith('- ')) {
+        const item = trimmed.substring(2);
+        if (item && !item.match(/^([A-Za-z0-9_]+):\s*(.*)$/) && !item.trim()) {
+          issues.push({ line: i + 1, message: 'Empty list item' });
+        }
+      } else {
+        issues.push({ line: i + 1, message: 'Expected list item starting with "- "', suggestion: 'Prefix list items with "- "' });
+      }
+    }
+  }
+
+  requiredSections.forEach(rs => {
+    if (!foundSections.has(rs)) {
+      issues.push({ line: 1, message: `Missing required section "${rs}"`, suggestion: `Add section "${rs}:"` });
+    }
+  });
+
+  requiredFields.forEach(rf => {
+    if (!foundFields.has(rf)) {
+      issues.push({ line: 1, message: `Missing required field "${rf}"`, suggestion: `Add "  ${rf}: <value>"` });
+    }
+  });
+
+  return issues;
+};
+
 
 // --- App Component ---
 type TabKey = 'projects' | 'create' | 'validate' | 'visualize' | 'export' | 'library';
@@ -201,6 +273,13 @@ const App = () => {
     }
     if (!zwToValidate.trim()) {
       setValidationResults({ type: 'info', message: "Nothing to validate. Please paste ZW content." });
+      return;
+    }
+
+    const issues = validateZWString(zwToValidate);
+    if (issues.length > 0) {
+      const messages = issues.map(issue => `Line ${issue.line}: ${issue.message}${issue.suggestion ? ` - ${issue.suggestion}` : ''}`);
+      setValidationResults({ type: 'error', message: `Found ${issues.length} issue(s) in ZW format.`, suggestions: messages });
       return;
     }
 
