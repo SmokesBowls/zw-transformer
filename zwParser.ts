@@ -29,6 +29,17 @@ export const parseZW = (zwString: string, options?: { delimiter?: string }): ZWN
     return null;
   }
 
+  const stripMarkdownFences = (input: string): string => {
+    const trimmed = input.trim();
+    const lines = trimmed.split('\n');
+    if (lines.length >= 2 && /^```(?:zw)?\s*$/i.test(lines[0]) && lines[lines.length - 1].trim() === '```') {
+      return lines.slice(1, -1).join('\n');
+    }
+    return input;
+  };
+
+  zwString = stripMarkdownFences(zwString);
+
   const lines = zwString.split('\n').filter(line => line.trim() !== '' && !line.trim().startsWith('#'));
   if (lines.length === 0) return null;
 
@@ -37,12 +48,11 @@ export const parseZW = (zwString: string, options?: { delimiter?: string }): ZWN
   const rootMatch = lines[0].match(rootLineRegex);
 
   if (!rootMatch) {
-    const firstSemanticLineIndex = lines.findIndex(l => l.match(rootLineRegex));
-     if (firstSemanticLineIndex === -1 || firstSemanticLineIndex > 0) {
-        return { key: 'Error: Invalid Root', value: 'Packet must start with a ZW Type (e.g., ZW-REQUEST:). Check for leading text or ensure the first semantic line is a ZW type declaration.', depth: 0 };
-    }
-    // This path should ideally not be hit if lines[0] is used after filtering, but as a fallback.
-    return { key: 'Error: Invalid Root', value: 'Packet must start with a type (e.g., ZW-REQUEST:)', depth: 0 };
+    return {
+      key: 'Error: Invalid Root',
+      value: `Packet must start with a ZW Type (e.g., ZW-REQUEST:). First line encountered: "${lines[0]}"`,
+      depth: 0
+    };
   }
   
   const effectiveDelimiter = options?.delimiter || ':';
