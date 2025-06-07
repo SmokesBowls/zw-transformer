@@ -571,7 +571,7 @@ Scenario: "${nlScenario}"
                 prompt += `\nSchema Name: ${schema.name}\n${schema.definition}\n---\n`;
             });
         } else {
-            prompt += "\nNo specific project templates provided. Infer a suitable ZW structure.\n";
+            prompt += "\nNo specific project templates provided. Infer a suitable ZW structure and start the packet with 'ZW-INFERRED-DATA:' on its own line.\n";
         }
     }
 
