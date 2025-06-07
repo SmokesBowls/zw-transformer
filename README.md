@@ -1,14 +1,76 @@
-# Run and deploy your AI Studio app
+# ZW Transformer v2.0
 
-This contains everything you need to run your app locally.
+ZW Transformer is a semantic middleware toolkit for turning creative narrative into structured data and back again. It provides utilities for:
 
-## Run Locally
+- **Narrative ⇄ ZW ⇄ JSON** transformations
+- **JSON ⇄ ZW** round‑trip conversion
+- A visual editor built with **React**, **TypeScript** and **Vite**
 
-**Prerequisites:**  Node.js
+ZW ("Ziegelwagga") is a human‑readable protocol for describing gameplay state and other structured concepts. This repository focuses on a modular architecture so the parser and converters can be used independently from the web UI.
 
+## Getting Started
 
+### Prerequisites
+- [Node.js](https://nodejs.org/) 18 or newer
+- A Gemini API key for the optional AI features
+
+### Install & Run
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+2. Create an `.env.local` file and set your Gemini API key:
+   ```bash
+   GEMINI_API_KEY=your-key-here
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+   Vite will start on <http://localhost:5173> by default.
+
+To build a production bundle use `npm run build` and then `npm run preview` to serve it.
+
+## Repository Overview
+
+- **index.html** – HTML entry point with basic styles and import map
+- **index.tsx** – main React application with tabs for creating, validating, visualising and exporting ZW content
+- **zwParser.ts** – core parser turning ZW text into a tree of nodes
+- **jsonToZw.ts** / **zwToJson.ts** – helpers for converting between JSON and ZW
+- **zwToGodotScript.ts** – convert a parsed ZW tree into Godot GDScript
+- **ZWSyntaxHighlighter.tsx** – syntax highlighted preview component
+- **ZWTemplateVisualizer.tsx** – tree visualizer for ZW packets
+- **AutoCompleteDropdown.tsx**, **CopyButton.tsx** – small UI utilities
+- **package.json**, **vite.config.ts**, **tsconfig.json** – project configuration files
+
+## Example Round‑Trip
+
+```ts
+import { convertJsonToZwString } from './jsonToZw';
+import { convertZwToJsonObject } from './zwToJson';
+
+const data = {
+  base: "Echo",
+  location: "Hoth",
+  defenses: ["ion cannon", "shield generator"]
+};
+
+const zw = convertJsonToZwString(JSON.stringify(data), 'ZW-BASE');
+console.log(zw);
+// =>
+// ZW-BASE:
+//   base: Echo
+//   location: Hoth
+//   defenses:
+//     - ion cannon
+//     - shield generator
+
+const back = convertZwToJsonObject(zw);
+console.log(JSON.stringify(back, null, 2));
+```
+
+Running the above will print the ZW representation and then the JSON object produced from that ZW string, demonstrating round‑trip safety.
+
+## Status
+
+Version 2.0 is a complete rewrite replacing previous files. The system is still evolving – feedback and contributions are welcome!
