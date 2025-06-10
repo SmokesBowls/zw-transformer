@@ -5,7 +5,8 @@ import ZWTemplateVisualizer from './ZWTemplateVisualizer';
 import ZWSyntaxHighlighter from './ZWSyntaxHighlighter'; // Import the new highlighter
 import AutoCompleteDropdown from './AutoCompleteDropdown'; // Import AutoCompleteDropdown
 import CopyButton from './CopyButton'; // Import the new CopyButton
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import AIService, { AIConfig, createAIService } from './aiService';
+import AIConfigPanel from './AIConfigPanel';
 import { ZWNode, ZWListItem, parseZW } from './zwParser';
 import { convertZwToGodot } from './zwToGodotScript'; // Import Godot converter
 import { convertJsonToZwString } from './jsonToZw'; // Import JSON to ZW converter
@@ -40,17 +41,6 @@ interface ValidationFeedback {
   message: string;
   details?: string[];
   suggestions?: string[];
-}
-
-let ai: GoogleGenAI | null = null;
-try {
-    if (!process.env.API_KEY) {
-        console.warn("API_KEY environment variable not set. Gemini API features will be disabled.");
-    } else {
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    }
-} catch (error) {
-    console.error("Failed to initialize GoogleGenAI:", error);
 }
 
 const LOCAL_STORAGE_PROJECTS_KEY = 'zwTransformerProjects';
@@ -167,6 +157,15 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isNarrativeFocusEnabled, setIsNarrativeFocusEnabled] = useState(true);
 
+  const [aiConfig, setAiConfig] = useState<AIConfig>({
+    provider: 'ollama',
+    ollamaBaseUrl: 'http://localhost:11434',
+    ollamaModel: 'llama3.2:latest',
+    temperature: 0.7,
+    maxTokens: 4096
+  });
+  const [aiService, setAiService] = useState<AIService | null>(null);
+
 
   // Validation Tab State
   const [zwToValidate, setZwToValidate] = useState('');
@@ -230,6 +229,32 @@ const App: React.FC = () => {
       localStorage.removeItem(LOCAL_STORAGE_ACTIVE_PROJECT_ID_KEY);
     }
   }, [activeProjectId]);
+
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('zwTransformerAIConfig');
+    let configToUse = aiConfig;
+    if (savedConfig) {
+      try {
+        const parsedConfig = JSON.parse(savedConfig);
+        setAiConfig(parsedConfig);
+        configToUse = parsedConfig;
+      } catch (error) {
+        console.error('Failed to parse saved AI config:', error);
+      }
+    }
+
+    const service = createAIService(configToUse);
+    setAiService(service);
+  }, []);
+
+  const handleAIConfigChange = (newConfig: AIConfig) => {
+    setAiConfig(newConfig);
+    localStorage.setItem('zwTransformerAIConfig', JSON.stringify(newConfig));
+  };
+
+  const handleAIServiceUpdate = (newService: AIService) => {
+    setAiService(newService);
+  };
 
   const handleCreateProject = () => {
     if (!newProjectName.trim()) {
@@ -442,7 +467,7 @@ const App: React.FC = () => {
   };
 
 
-  // --- Gemini API Interaction ---
+  // --- AI Service Interaction ---
   const getNarrativeFocusPrompt = (scenario: string, projectTemplates?: ZWSchemaDefinition[]) => {
     let prompt = `You are an expert in narrative design and game development, specializing in the ZW (Ziegelwagga) consciousness pattern language.
 The user wants to generate a ZW packet for the following scenario:
@@ -541,8 +566,8 @@ The ZW packet should be well-formed and adhere to the ZW syntax (indented key-va
   };
 
   const handleGenerateZWFromNL = async () => {
-    if (!ai) {
-      alert("Gemini API not initialized. Please ensure API_KEY is set.");
+    if (!aiService) {
+      alert("AI service not initialized. Please configure your AI provider in the settings.");
       return;
     }
     if (!nlScenario.trim()) {
@@ -577,11 +602,11 @@ Scenario: "${nlScenario}"
 
 
     try {
-      const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-preview-04-17', // Use the recommended model
-        contents: [{role: "user", parts: [{text: prompt}]}],
+      const text = await aiService.generateText(prompt, {
+        provider: aiConfig.provider,
+        model: aiConfig.provider === 'ollama' ? aiConfig.ollamaModel : undefined,
+        temperature: aiConfig.temperature
       });
-      const text = response.text.trim();
       setGeneratedZWPacket(text);
       // Automatically validate the generated packet
       validateZwContent(text, 'Generated Packet Validation');
@@ -595,8 +620,8 @@ Scenario: "${nlScenario}"
   };
 
   const handleRefineZWFromNL = async () => {
-    if (!ai) {
-      alert("Gemini API not initialized. Please ensure API_KEY is set.");
+    if (!aiService) {
+      alert("AI service not initialized. Please configure your AI provider in the settings.");
       return;
     }
     if (!generatedZWPacket.trim()) {
@@ -622,11 +647,11 @@ Ensure the refined packet is well-formed.
 Generate ONLY the refined ZW packet.
 `;
     try {
-      const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-preview-04-17',
-        contents: [{role: "user", parts: [{text: prompt}]}],
+      const text = await aiService.generateText(prompt, {
+        provider: aiConfig.provider,
+        model: aiConfig.provider === 'ollama' ? aiConfig.ollamaModel : undefined,
+        temperature: aiConfig.temperature
       });
-      const text = response.text.trim();
       setGeneratedZWPacket(text);
       setRefinementSuggestion(''); // Clear suggestion after use
       validateZwContent(text, 'Refined Packet Validation');
@@ -1064,6 +1089,15 @@ Generate ONLY the refined ZW packet.
                 )}
             </section>
 
+            <section>
+              <AIConfigPanel 
+                aiService={aiService}
+                config={aiConfig}
+                onConfigChange={handleAIConfigChange}
+                onServiceUpdate={handleAIServiceUpdate}
+              />
+            </section>
+
             <section className="template-designer-section">
               <h2>Template Designer</h2>
               <input
@@ -1176,9 +1210,9 @@ Generate ONLY the refined ZW packet.
                 onChange={(e) => setNlScenario(e.target.value)}
                 placeholder="Describe a scenario (e.g., 'A character named Alex feels scared and sees a shadow. They need to find a key in the old library to unlock a chest containing a map.')"
                 aria-label="Natural language scenario input"
-                disabled={!ai}
+                disabled={!aiService}
               />
-              <button className="action-button" onClick={handleGenerateZWFromNL} disabled={isGenerating || !nlScenario.trim() || !ai}>
+              <button className="action-button" onClick={handleGenerateZWFromNL} disabled={isGenerating || !nlScenario.trim() || !aiService}>
                 {isGenerating ? 'Generating...' : 'Generate ZW from NL'}
               </button>
 
@@ -1200,9 +1234,9 @@ Generate ONLY the refined ZW packet.
                     placeholder="Suggest changes or refinements (e.g., 'Add a mood field: anxious', 'Change action to Explore')"
                     aria-label="Refinement suggestion input"
                     style={{ marginTop: '15px' }}
-                    disabled={!ai}
+                    disabled={!aiService}
                   />
-                  <button className="action-button secondary" onClick={handleRefineZWFromNL} disabled={isGenerating || !refinementSuggestion.trim() || !ai} style={{ marginTop: '5px' }}>
+                  <button className="action-button secondary" onClick={handleRefineZWFromNL} disabled={isGenerating || !refinementSuggestion.trim() || !aiService} style={{ marginTop: '5px' }}>
                     {isGenerating ? 'Refining...' : 'Refine ZW with Feedback'}
                   </button>
                 </>
