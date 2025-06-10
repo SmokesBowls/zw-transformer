@@ -5,8 +5,7 @@ import ZWTemplateVisualizer from './ZWTemplateVisualizer';
 import ZWSyntaxHighlighter from './ZWSyntaxHighlighter'; // Import the new highlighter
 import AutoCompleteDropdown from './AutoCompleteDropdown'; // Import AutoCompleteDropdown
 import CopyButton from './CopyButton'; // Import the new CopyButton
-import AIService, { AIConfig, createAIService } from './aiService';
-import AIConfigPanel from './AIConfigPanel';
+import { SimpleAIService, SimpleAIConfig } from './simpleAiService';
 import { ZWNode, ZWListItem, parseZW } from './zwParser';
 import { convertZwToGodot } from './zwToGodotScript'; // Import Godot converter
 import { convertJsonToZwString } from './jsonToZw'; // Import JSON to ZW converter
@@ -157,14 +156,13 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isNarrativeFocusEnabled, setIsNarrativeFocusEnabled] = useState(true);
 
-  const [aiConfig, setAiConfig] = useState<AIConfig>({
-    provider: 'ollama',
-    ollamaBaseUrl: 'http://localhost:11434',
-    ollamaModel: 'llama3.2:latest',
-    temperature: 0.7,
-    maxTokens: 4096
+  const [aiConfig, setAiConfig] = useState<SimpleAIConfig>({
+    provider: 'ollama', // Default to Ollama since it's working
+    ollamaModel: 'dolphin-mistral:latest', // Your proven model
+    temperature: 0.5,
+    geminiApiKey: process.env.API_KEY
   });
-  const [aiService, setAiService] = useState<AIService | null>(null);
+  const [aiService, setAiService] = useState<SimpleAIService | null>(null);
 
 
   // Validation Tab State
@@ -231,30 +229,10 @@ const App: React.FC = () => {
   }, [activeProjectId]);
 
   useEffect(() => {
-    const savedConfig = localStorage.getItem('zwTransformerAIConfig');
-    let configToUse = aiConfig;
-    if (savedConfig) {
-      try {
-        const parsedConfig = JSON.parse(savedConfig);
-        setAiConfig(parsedConfig);
-        configToUse = parsedConfig;
-      } catch (error) {
-        console.error('Failed to parse saved AI config:', error);
-      }
-    }
-
-    const service = createAIService(configToUse);
+    const service = new SimpleAIService(aiConfig);
     setAiService(service);
-  }, []);
+  }, [aiConfig]);
 
-  const handleAIConfigChange = (newConfig: AIConfig) => {
-    setAiConfig(newConfig);
-    localStorage.setItem('zwTransformerAIConfig', JSON.stringify(newConfig));
-  };
-
-  const handleAIServiceUpdate = (newService: AIService) => {
-    setAiService(newService);
-  };
 
   const handleCreateProject = () => {
     if (!newProjectName.trim()) {
@@ -602,11 +580,7 @@ Scenario: "${nlScenario}"
 
 
     try {
-      const text = await aiService.generateText(prompt, {
-        provider: aiConfig.provider,
-        model: aiConfig.provider === 'ollama' ? aiConfig.ollamaModel : undefined,
-        temperature: aiConfig.temperature
-      });
+      const text = await aiService.generateText(prompt);
       setGeneratedZWPacket(text);
       // Automatically validate the generated packet
       validateZwContent(text, 'Generated Packet Validation');
@@ -647,11 +621,7 @@ Ensure the refined packet is well-formed.
 Generate ONLY the refined ZW packet.
 `;
     try {
-      const text = await aiService.generateText(prompt, {
-        provider: aiConfig.provider,
-        model: aiConfig.provider === 'ollama' ? aiConfig.ollamaModel : undefined,
-        temperature: aiConfig.temperature
-      });
+      const text = await aiService.generateText(prompt);
       setGeneratedZWPacket(text);
       setRefinementSuggestion(''); // Clear suggestion after use
       validateZwContent(text, 'Refined Packet Validation');
@@ -1090,12 +1060,38 @@ Generate ONLY the refined ZW packet.
             </section>
 
             <section>
-              <AIConfigPanel 
-                aiService={aiService}
-                config={aiConfig}
-                onConfigChange={handleAIConfigChange}
-                onServiceUpdate={handleAIServiceUpdate}
-              />
+              <h3>🤖 AI Provider</h3>
+              <div style={{ marginBottom: '15px' }}>
+                <label>
+                  <input
+                    type="radio"
+                    value="ollama"
+                    checked={aiConfig.provider === 'ollama'}
+                    onChange={(e) => setAiConfig({ ...aiConfig, provider: 'ollama' })}
+                  />
+                  🐬 Ollama (dolphin-mistral) - Local
+                </label>
+                <br />
+                <label>
+                  <input
+                    type="radio"
+                    value="gemini"
+                    checked={aiConfig.provider === 'gemini'}
+                    onChange={(e) => setAiConfig({ ...aiConfig, provider: 'gemini' })}
+                  />
+                  🤖 Gemini - Cloud (requires API key)
+                </label>
+              </div>
+              {aiConfig.provider === 'ollama' && (
+                <div style={{ padding: '10px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
+                  ✅ Using dolphin-mistral:latest locally
+                </div>
+              )}
+              {aiConfig.provider === 'gemini' && (
+                <div style={{ padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
+                  ⚠️ Requires GEMINI_API_KEY environment variable
+                </div>
+              )}
             </section>
 
             <section className="template-designer-section">
