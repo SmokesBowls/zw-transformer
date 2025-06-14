@@ -3,6 +3,18 @@ export interface OllamaResponse {
   done: boolean;
 }
 
+// Fetch a list of available models from a local Ollama server
+export async function getAvailableModels(): Promise<string[]> {
+  try {
+    const response = await fetch('http://localhost:11434/api/tags');
+    const data = await response.json();
+    return data.models?.map((model: any) => model.name) || [];
+  } catch (error) {
+    console.error('Failed to fetch Ollama models:', error);
+    return ['dolphin-mistral:latest'];
+  }
+}
+
 export class OllamaClient {
   private baseUrl: string;
 

@@ -6,6 +6,7 @@ import ZWSyntaxHighlighter from './ZWSyntaxHighlighter'; // Import the new highl
 import AutoCompleteDropdown from './AutoCompleteDropdown'; // Import AutoCompleteDropdown
 import CopyButton from './CopyButton'; // Import the new CopyButton
 import { SimpleAIService, SimpleAIConfig } from './simpleAiService';
+import { getAvailableModels } from './ollamaClient';
 import { ZWNode, ZWListItem, parseZW } from './zwParser';
 import { convertZwToGodot } from './zwToGodotScript'; // Import Godot converter
 import { convertJsonToZwString } from './jsonToZw'; // Import JSON to ZW converter
@@ -156,6 +157,9 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isNarrativeFocusEnabled, setIsNarrativeFocusEnabled] = useState(true);
 
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState('dolphin-mistral:latest');
+  const [availableModels, setAvailableModels] = useState<string[]>(['dolphin-mistral:latest']);
+
   const [aiConfig, setAiConfig] = useState<SimpleAIConfig>({
     provider: 'ollama', // Default to Ollama since it's working
     ollamaModel: 'dolphin-mistral:latest', // Your proven model
@@ -232,6 +236,14 @@ const App: React.FC = () => {
     const service = new SimpleAIService(aiConfig);
     setAiService(service);
   }, [aiConfig]);
+
+  useEffect(() => {
+    if (aiConfig.provider === 'ollama') {
+      getAvailableModels().then(models => {
+        setAvailableModels(models);
+      });
+    }
+  }, [aiConfig.provider]);
 
 
   const handleCreateProject = () => {
@@ -580,7 +592,7 @@ Scenario: "${nlScenario}"
 
 
     try {
-      const text = await aiService.generateText(prompt);
+      const text = await aiService.generateText(prompt, selectedOllamaModel);
       setGeneratedZWPacket(text);
       // Automatically validate the generated packet
       validateZwContent(text, 'Generated Packet Validation');
@@ -621,7 +633,7 @@ Ensure the refined packet is well-formed.
 Generate ONLY the refined ZW packet.
 `;
     try {
-      const text = await aiService.generateText(prompt);
+      const text = await aiService.generateText(prompt, selectedOllamaModel);
       setGeneratedZWPacket(text);
       setRefinementSuggestion(''); // Clear suggestion after use
       validateZwContent(text, 'Refined Packet Validation');
@@ -1069,8 +1081,33 @@ Generate ONLY the refined ZW packet.
                     checked={aiConfig.provider === 'ollama'}
                     onChange={(e) => setAiConfig({ ...aiConfig, provider: 'ollama' })}
                   />
-                  🐬 Ollama (dolphin-mistral) - Local
+                  🐬 Ollama - Local
                 </label>
+                {aiConfig.provider === 'ollama' && (
+                  <div className="ollama-model-selector" style={{marginTop: '10px', marginLeft: '20px'}}>
+                    <label>Model: </label>
+                    <select 
+                      value={selectedOllamaModel} 
+                      onChange={(e) => setSelectedOllamaModel(e.target.value)}
+                      style={{marginRight: '10px'}}
+                    >
+                      {availableModels.map(model => (
+                        <option key={model} value={model}>{model}</option>
+                      ))}
+                    </select>
+                    <input 
+                      type="text" 
+                      placeholder="Custom model name..."
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value) {
+                          setSelectedOllamaModel(e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                      style={{width: '150px', fontSize: '12px'}}
+                    />
+                  </div>
+                )}
                 <br />
                 <label>
                   <input
@@ -1084,7 +1121,7 @@ Generate ONLY the refined ZW packet.
               </div>
               {aiConfig.provider === 'ollama' && (
                 <div style={{ padding: '10px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
-                  ✅ Using dolphin-mistral:latest locally
+                  ✅ Using {selectedOllamaModel} locally
                 </div>
               )}
               {aiConfig.provider === 'gemini' && (
