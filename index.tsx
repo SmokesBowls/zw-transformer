@@ -1121,7 +1121,7 @@ Generate ONLY the refined ZW packet.
               </div>
               {aiConfig.provider === 'ollama' && (
                 <div style={{ padding: '10px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
-                  ✅ Using {selectedOllamaModel} locally
+                  {`✅ Using ${selectedOllamaModel} locally`}
                 </div>
               )}
               {aiConfig.provider === 'gemini' && (
