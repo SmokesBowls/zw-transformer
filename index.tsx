@@ -1095,9 +1095,9 @@ Generate ONLY the refined ZW packet.
                         <option key={model} value={model}>{model}</option>
                       ))}
                     </select>
-                    <input 
-                      type="text" 
-                      placeholder="Custom model name..."
+                    <input
+                      type="text"
+                      placeholder="Custom model..."
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && e.currentTarget.value) {
                           setSelectedOllamaModel(e.currentTarget.value);

@@ -33,7 +33,7 @@ export class SimpleAIService {
 
     if (this.config.provider === 'ollama') {
       const selectedModel = model || this.config.ollamaModel || 'dolphin-mistral:latest';
-      return this.ollamaClient.generate(selectedModel, prompt, temperature);
+      return this.ollamaClient.generate(selectedModel, prompt, { options: { temperature } });
     }
     else if (this.config.provider === 'gemini' && this.geminiClient) {
       const response: GenerateContentResponse = await this.geminiClient.models.generateContent({
