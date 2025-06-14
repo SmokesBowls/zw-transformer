@@ -22,7 +22,7 @@ export class OllamaClient {
     this.baseUrl = baseUrl;
   }
 
-  async generate(model: string, prompt: string, temperature: number = 0.5): Promise<string> {
+  async generate(model: string, prompt: string, options: any = {}): Promise<string> {
     try {
       const response = await fetch(`${this.baseUrl}/api/generate`, {
         method: 'POST',
@@ -31,7 +31,7 @@ export class OllamaClient {
           model,
           prompt,
           stream: false,
-          options: { temperature }
+          ...options
         })
       });
 
