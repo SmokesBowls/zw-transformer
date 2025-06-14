@@ -12,7 +12,8 @@ ZW ("Ziegelwagga") is a human‑readable protocol for describing gameplay state 
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) 18 or newer
-- A Gemini API key for the optional AI features
+- (Optional) [Ollama](https://ollama.ai/) running locally for offline AI generation
+- (Optional) a Gemini API key for Google's hosted models
 
 ### Install & Run
 1. Install dependencies:
@@ -42,6 +43,15 @@ To build a production bundle use `npm run build` and then `npm run preview` to s
 - **ZWTemplateVisualizer.tsx** – tree visualizer for ZW packets
 - **AutoCompleteDropdown.tsx**, **CopyButton.tsx** – small UI utilities
 - **package.json**, **vite.config.ts**, **tsconfig.json** – project configuration files
+
+## AI Integration
+
+The Create tab includes optional AI helpers that can convert natural language prompts into ZW packets and refine existing templates. You can choose between:
+
+- **Ollama** – run `ollama serve` locally (default URL `http://localhost:11434`)
+- **Gemini** – provide a `GEMINI_API_KEY` via `.env.local`
+
+The provider and model can be selected from the app's **AI Configuration** panel.
 
 ## Example Round‑Trip
 
