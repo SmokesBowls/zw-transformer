@@ -28,13 +28,13 @@ export class SimpleAIService {
     }
   }
 
-  async generateText(prompt: string): Promise<string> {
+  async generateText(prompt: string, model?: string): Promise<string> {
     const temperature = this.config.temperature || 0.5;
 
     if (this.config.provider === 'ollama') {
-      const model = this.config.ollamaModel || 'dolphin-mistral:latest';
-      return this.ollamaClient.generate(model, prompt, temperature);
-    } 
+      const selectedModel = model || this.config.ollamaModel || 'dolphin-mistral:latest';
+      return this.ollamaClient.generate(selectedModel, prompt, temperature);
+    }
     else if (this.config.provider === 'gemini' && this.geminiClient) {
       const response: GenerateContentResponse = await this.geminiClient.models.generateContent({
         model: 'gemini-2.5-flash-preview-04-17',
